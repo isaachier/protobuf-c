@@ -97,9 +97,14 @@ if(BUILD_PROTO3)
 endif()
 
 if(CMAKE_HOST_UNIX)
-  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                     COMMAND ln -sf protoc-gen-c protoc-c
-                     DEPENDS protoc-gen-c)
+  add_custom_command(
+    OUTPUT protoc-c
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            $<TARGET_FILE:protoc-gen-c> protoc-c
+    DEPENDS $<TARGET_FILE:protoc-gen-c>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM)
+  add_custom_target(protoc-c-symlink ALL DEPENDS protoc-c)
 endif()
 
 function(generate_test_sources PROTO_FILE SRC HDR)
@@ -112,7 +117,6 @@ function(generate_test_sources PROTO_FILE SRC HDR)
          ${PROTO_FILE}
     DEPENDS protoc-gen-c)
 endfunction()
-
 
 if(BUILD_TESTING)
   generate_test_sources(t/test.proto t/test.pb-c.c t/test.pb-c.h)
@@ -205,13 +209,83 @@ if(BUILD_TESTING)
   add_test(test-version test-version)
 endif()
 
-install(TARGETS protoc-gen-c protobuf-c RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
-install(FILES protobuf-c/protobuf-c.h DESTINATION include/protobuf-c)
-install(FILES protobuf-c/protobuf-c.h DESTINATION include)
+# Installation (https://github.com/forexample/package-example)
+
+# Layout. This works for all platforms:
+#   * <prefix>/lib/cmake/<PROJECT-NAME>
+#   * <prefix>/lib/
+#   * <prefix>/include/
+set(config_install_dir "lib/cmake/${PROJECT_NAME}")
+set(include_install_dir "include")
+
+set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+# Configuration
+set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
+set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
+set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
+set(namespace "${PROJECT_NAME}::")
+
+# Include module with fuction 'write_basic_package_version_file'
+include(CMakePackageConfigHelpers)
+
+# Configure '<PROJECT-NAME>ConfigVersion.cmake'
+# Use:
+#   * PROJECT_VERSION
+write_basic_package_version_file(
+    "${version_config}" COMPATIBILITY SameMajorVersion
+)
+
+# Configure '<PROJECT-NAME>Config.cmake'
+# Use variables:
+#   * TARGETS_EXPORT_NAME
+#   * PROJECT_NAME
+configure_package_config_file(
+    "cmake/Config.cmake.in"
+    "${project_config}"
+    INSTALL_DESTINATION "${config_install_dir}"
+)
+
+# Targets:
+#   * <prefix>/lib/libprotobuf-c.a
+#   * header location after install: <prefix>/include/protobuf-c/protobuf-c.h
+#   * headers can be included by C++ code `#include <protobuf-c/protobuf-c.h>`
+install(
+    TARGETS protobuf-c protoc-gen-c
+    EXPORT "${TARGETS_EXPORT_NAME}"
+    LIBRARY DESTINATION "lib"
+    ARCHIVE DESTINATION "lib"
+    RUNTIME DESTINATION "bin"
+    INCLUDES DESTINATION "${include_install_dir}"
+)
 
 if(CMAKE_HOST_UNIX)
-  install(CODE "execute_process(
-                  COMMAND ln -sf protoc-gen-c protoc-c
-                  WORKING_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin
-                )")
+  configure_file(
+    "cmake/InstallSymlink.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake/InstallSymlink.cmake"
+    @ONLY)
+  install(SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/cmake/InstallSymlink.cmake)
 endif()
+
+# Headers:
+#   * protobuf-c/protobuf-c.h -> <prefix>/include/protobuf-c/protobuf-c.h
+install(
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/protobuf-c/protobuf-c.h"
+    DESTINATION "${include_install_dir}/protobuf-c"
+)
+
+# Config
+#   * <prefix>/lib/cmake/protobuf-c/protobuf-cConfig.cmake
+#   * <prefix>/lib/cmake/protobuf-c/protobuf-cConfigVersion.cmake
+install(
+    FILES "${project_config}" "${version_config}"
+    DESTINATION "${config_install_dir}"
+)
+
+# Config
+#   * <prefix>/lib/cmake/protobuf-c/protobuf-cTargets.cmake
+install(
+    EXPORT "${TARGETS_EXPORT_NAME}"
+    NAMESPACE "${namespace}"
+    DESTINATION "${config_install_dir}"
+)
