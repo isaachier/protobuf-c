@@ -1,8 +1,15 @@
+cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+
 set(PACKAGE protobuf-c)
 set(PACKAGE_NAME protobuf-c)
 set(PACKAGE_VERSION 1.3.0)
 
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(HunterGate)
+HunterGate(
+    URL "https://github.com/ruslo/hunter/archive/v0.20.21.tar.gz"
+    SHA1 "36bc6c263eb173697724e00adac8add4b3e52a31"
+)
 
 project(protobuf-c VERSION ${PACKAGE_VERSION})
 
@@ -36,7 +43,8 @@ target_include_directories(protobuf-c PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/protobuf-c>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
-find_package(Protobuf REQUIRED)
+hunter_add_package(Protobuf)
+find_package(Protobuf CONFIG REQUIRED)
 
 if(MSVC AND NOT BUILD_SHARED_LIBS)
 	# In case we are building static libraries, link also the runtime library statically
@@ -87,12 +95,9 @@ target_include_directories(protoc-gen-c PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 target_compile_definitions(protoc-gen-c PUBLIC ${defs})
-target_link_libraries(protoc-gen-c PUBLIC
-  ${PROTOBUF_PROTOC_LIBRARY}
-  ${PROTOBUF_LIBRARY})
+target_link_libraries(protoc-gen-c PUBLIC protobuf::libprotobuf)
 
 if(BUILD_PROTO3)
-  #target_compile_definitions(protobuf-c PUBLIC HAVE_PROTO3)
   target_compile_definitions(protoc-gen-c PUBLIC HAVE_PROTO3)
 endif()
 
