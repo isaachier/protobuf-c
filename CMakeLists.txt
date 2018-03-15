@@ -95,7 +95,8 @@ target_include_directories(protoc-gen-c PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 target_compile_definitions(protoc-gen-c PUBLIC ${defs})
-target_link_libraries(protoc-gen-c PUBLIC protobuf::libprotobuf)
+target_link_libraries(protoc-gen-c PUBLIC
+  protobuf::libprotobuf protobuf::libprotoc)
 
 if(BUILD_PROTO3)
   target_compile_definitions(protoc-gen-c PUBLIC HAVE_PROTO3)
